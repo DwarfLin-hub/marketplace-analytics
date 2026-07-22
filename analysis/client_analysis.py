@@ -56,33 +56,44 @@ print("\nРаспределение сегментов RFM (на основе в
 print(seg_counts)
 seg_counts.to_csv('rfm_segments.csv')
 
-# 3. Когортный LTV (на всех данных, оптимизированно)
-print("\nСтроим когортный LTV на всех данных (может занять 1-2 минуты)...")
+# Определяем месяц покупки и месяц первой покупки (когорта)
 sales['purchase_month'] = sales['purchase_date'].dt.to_period('M')
 first_purchase = sales.groupby('client_id')['purchase_month'].min().reset_index(name='cohort_month')
-sales_merged = sales.merge(first_purchase, on='client_id')
+sales = sales.merge(first_purchase, on='client_id')
 
-# Быстрое вычисление months_since (без apply)
-sales_merged['purchase_dt'] = sales_merged['purchase_month'].dt.start_time
-sales_merged['cohort_dt'] = sales_merged['cohort_month'].dt.start_time
-sales_merged['months_since'] = (sales_merged['purchase_dt'].dt.year - sales_merged['cohort_dt'].dt.year) * 12 + \
-                                (sales_merged['purchase_dt'].dt.month - sales_merged['cohort_dt'].dt.month)
+# Преобразуем периоды в Timestamp для расчёта разницы в месяцах
+sales['cohort_month_ts'] = sales['cohort_month'].dt.start_time
+sales['purchase_month_ts'] = sales['purchase_month'].dt.start_time
 
-ltv = sales_merged.groupby(['cohort_month', 'months_since'])['total_price'].mean().reset_index()
+# Месяцы с момента первой покупки
+sales['months_since'] = (sales['purchase_month_ts'].dt.year - sales['cohort_month_ts'].dt.year) * 12 \
+                        + (sales['purchase_month_ts'].dt.month - sales['cohort_month_ts'].dt.month)
+
+# Агрегация: средний total_price по когорте и месяцу
+ltv = sales.groupby(['cohort_month', 'months_since'], as_index=False)['total_price'].mean()
+
+# Сводная таблица
 ltv_pivot = ltv.pivot(index='cohort_month', columns='months_since', values='total_price')
+ltv_pivot = ltv_pivot.sort_index()
+ltv_pivot = ltv_pivot.fillna(0)
 
-# Сохраняем LTV в CSV
-ltv_pivot.to_csv('ltv_cohorts.csv')
-
-# Тепловая карта
-plt.figure(figsize=(14,8))
-sns.heatmap(ltv_pivot, annot=True, fmt='.0f', cmap='YlGnBu')
-plt.title('Когортный анализ LTV (средний чек по месяцам)')
+# 1. Тепловая карта
+plt.figure(figsize=(16, 10))
+sns.heatmap(ltv_pivot, annot=True, fmt='.0f', cmap='YlGnBu',
+            cbar_kws={'label': 'Средний чек, руб.'},
+            linewidths=0.5, linecolor='gray')
+plt.title('Когортный анализ LTV (средний чек по месяцам с момента первой покупки)')
 plt.xlabel('Месяцы с момента первой покупки')
-plt.ylabel('Месяц первой покупки')
+plt.ylabel('Когорта (месяц первой покупки)')
+plt.xticks(rotation=0)
 plt.tight_layout()
-plt.savefig('ltv_cohorts.png')
+plt.savefig('ltv_cohorts_correct.png', dpi=150)
 plt.show()
+
+# 2. Вывод таблицы с цветным фоном (стили pandas)
+styled = ltv_pivot.style.background_gradient(cmap='YlGnBu', axis=None)
+styled = styled.format('{:.0f}')  # округлим до целых
+styled
 
 print("\n✅ Анализ завершён. Сохранены файлы:")
 print("- rfm_segments.csv")
