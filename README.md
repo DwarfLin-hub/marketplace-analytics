@@ -154,12 +154,6 @@ Date:   Sunday Jul 19 20:00:00 2026 +0300
     - Final commit before submission
 
 
-MB_DB_TYPE=postgres – тип БД.
-MB_DB_DBNAME=marketplace – имя базы.
-MB_DB_PORT=5432 – порт PostgreSQL.
-MB_DB_USER=analyst – пользователь БД.
-MB_DB_PASS=strong_password – пароль.
-MB_DB_HOST=host.docker.internal – специальный адрес для доступа из контейнера к вашему хосту (где работает PostgreSQL). )
 
 
 
